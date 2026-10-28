@@ -1,6 +1,6 @@
 import type { Replay, ReplaySpeed } from './types';
 
-const STATUSES = new Set<Replay['status']>(['queued','preparing','running','paused','draining','cancelling','succeeded','failed','cancelled']);
+const STATUSES = new Set<Replay['status']>(['queued','preparing','running','draining','cancelling','succeeded','failed','cancelled']);
 
 export function isTerminalReplay(status: Replay['status']): boolean {
   return status === 'succeeded' || status === 'failed' || status === 'cancelled';
@@ -16,11 +16,6 @@ function count(value: unknown): number | undefined {
 
 function timestamp(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
-}
-
-function capability(value: unknown, previous: boolean | undefined, eligible: boolean): boolean | undefined {
-  const supported = typeof value === 'boolean' ? value : previous;
-  return supported === undefined ? undefined : eligible && supported;
 }
 
 export function replaySpeed(value: unknown): ReplaySpeed | undefined {
@@ -44,17 +39,11 @@ export function applyReplayResponse(raw: unknown, previous: Replay, receivedAt =
     metricsLabels = { ...metricsLabels, model_name: metricsMap[previous.modelId] };
   }
   const status=previous.status === 'cancelling' && !isTerminalReplay(response.status as Replay['status']) ? 'cancelling' : response.status as Replay['status'];
-  // 完整任务响应必须重新声明控制能力，不能仅凭刷新前的缓存启用旧后端按钮。
-  const fullTask=typeof response.replay_id === 'string';
   return {
     ...previous,
     status,
     speed: replaySpeed(response.speed) ?? previous.speed,
     cancellable: status === 'cancelling' || isTerminalReplay(status) ? false : typeof response.cancellable === 'boolean' ? response.cancellable : previous.cancellable,
-    pausable: capability(response.pausable, fullTask ? undefined : previous.pausable, ['queued','running'].includes(status)),
-    resumable: capability(response.resumable, fullTask ? undefined : previous.resumable, status === 'paused'),
-    pausedAt: response.paused_at === null ? undefined : timestamp(response.paused_at) ?? previous.pausedAt,
-    pausedSeconds: timestamp(response.paused_seconds) ?? previous.pausedSeconds,
     cancelRequestedAt: timestamp(response.cancel_requested_at) ?? previous.cancelRequestedAt,
     revision: revision ?? previous.revision,
     startedAt: timestamp(response.started_at) ?? previous.startedAt,

@@ -9,15 +9,12 @@ const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]
 (async () => {
   const browser = await chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
   const errors = [];
-  const fixture = async (origin, { demo = false, missingRandom = false, failFirst = false } = {}) => {
+  const fixture = async (origin, { missingRandom = false, failFirst = false } = {}) => {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1080 } });
     const page = await context.newPage();
     const state = { creates: [], task: null };
     page.on('pageerror', error => errors.push(error.message));
-    await page.addInitScript(({ demo, missingRandom }) => {
-      localStorage.setItem('trafficReplay.mode', demo ? 'demo' : 'backend');
-      if (missingRandom) Object.defineProperty(crypto, 'getRandomValues', { configurable: true, value: undefined });
-    }, { demo, missingRandom });
+    if (missingRandom) await page.addInitScript(() => Object.defineProperty(crypto, 'getRandomValues', { configurable: true, value: undefined }));
     await page.route('**/*', async route => {
       const req = route.request(), url = new URL(req.url());
       if (url.origin !== origin) return route.abort();
@@ -49,7 +46,7 @@ const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]
       return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     });
     await page.goto(origin);
-    if (!demo) {
+    {
       await expect(page.locator('#model')).toHaveValue('http-model');
       await page.getByRole('button', { name: '连接设置', exact: true }).click();
       const keyInput = page.locator('.settings-field input');
@@ -94,13 +91,6 @@ const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]
     assert.deepEqual(http.state.creates, [original, original]);
     await http.context.close();
 
-    const demo = await fixture(insecureOrigin, { demo: true });
-    await demo.start.click();
-    await expect(demo.page.locator('.replay-actions code')).toHaveText(/^demo-/);
-    assert.match((await demo.page.locator('.replay-actions code').innerText()).slice(5), uuidV4);
-    assert.equal(demo.state.creates.length, 0);
-    await demo.context.close();
-
     const missing = await fixture(insecureOrigin, { missingRandom: true });
     await missing.start.click();
     await expect(missing.page.getByRole('dialog')).toContainText('当前浏览器无法生成回放标识');
@@ -119,6 +109,6 @@ const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]
     await missing.context.close();
 
     assert.deepEqual(errors, []);
-    console.log('PASS: native UUID submission, HTTP fallback, original body/key on retry without crypto, HTTP demo, visible localized initialization errors and recovery.');
+    console.log('PASS: native UUID submission, HTTP fallback, original body/key on retry without crypto, visible localized initialization errors and recovery.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

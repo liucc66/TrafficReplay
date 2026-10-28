@@ -8,8 +8,8 @@ import { replayLatencyWindow, retainReplayLatency, type ReplayLatencyConfig, typ
 import { fullDateTime } from './time';
 import type { Metrics, Replay } from './types';
 
-export default function ReplayLatency({ replay, mode, api, config, language, refreshToken }: {
-  replay?: Replay; mode: 'demo' | 'backend'; api: ApiConfig; config: ReplayLatencyConfig; language: Language; refreshToken: number;
+export default function ReplayLatency({ replay, api, config, language, refreshToken }: {
+  replay?: Replay; api: ApiConfig; config: ReplayLatencyConfig; language: Language; refreshToken: number;
 }) {
   const t = (text: string, values?: Record<string, string | number>) => translate(language, text, values);
   const [metrics, setMetrics] = useState<ReplayLatencyMetrics>(emptyMetrics);
@@ -22,7 +22,7 @@ export default function ReplayLatency({ replay, mode, api, config, language, ref
 
   useEffect(() => {
     setMetrics(emptyMetrics); setWindow(undefined); setSettled(false); setLoading(false);
-  }, [replay?.id, replay?.startedAt, replay?.metricsName, labelKey, mode]);
+  }, [replay?.id, replay?.startedAt, replay?.metricsName, labelKey]);
 
   useEffect(() => {
     if (!replay || replay.startedAt === undefined) return;
@@ -36,9 +36,7 @@ export default function ReplayLatency({ replay, mode, api, config, language, ref
       if (!plan) return;
       busy = true; setLoading(true); setWindow(plan);
       try {
-        const data: Metrics = mode === 'demo'
-          ? { ttft: {value: .152}, e2e: {value: 2.86}, itl: {value: .033}, tpot: {value: .031}, qt: {value: .08} }
-          : await fetchMetrics(task.metricsName, plan.windowSeconds, api, { labels: task.metricsLabels, evaluatedAt: plan.evaluatedAt, freshAfter: plan.settleAfter !== undefined && requestedAt >= plan.settleAfter ? plan.settleAfter * 1000 : undefined });
+        const data: Metrics = await fetchMetrics(task.metricsName, plan.windowSeconds, api, { labels: task.metricsLabels, evaluatedAt: plan.evaluatedAt, freshAfter: plan.settleAfter !== undefined && requestedAt >= plan.settleAfter ? plan.settleAfter * 1000 : undefined });
         if (!live) return;
         setMetrics(previous => retainReplayLatency(previous, data, plan.evaluatedAt));
         if (plan.settleAfter !== undefined && requestedAt >= plan.settleAfter && Object.values(data).every(metric => !metric.error)) {
@@ -56,7 +54,7 @@ export default function ReplayLatency({ replay, mode, api, config, language, ref
     const visible = () => { if (!document.hidden) void load(); };
     document.addEventListener('visibilitychange', visible);
     return () => { live = false; clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
-  }, [replay?.id, replay?.startedAt, replay?.finishedAt, replay?.metricsName, labelKey, terminal, mode, api, config, refreshToken]);
+  }, [replay?.id, replay?.startedAt, replay?.finishedAt, replay?.metricsName, labelKey, terminal, api, config, refreshToken]);
 
   const emptyNote = t(!replay ? '等待创建回放任务' : replay.startedAt === undefined
     ? terminal ? '任务已结束，未开始打流' : '等待实际打流开始时间'
@@ -73,6 +71,6 @@ export default function ReplayLatency({ replay, mode, api, config, language, ref
     </div>
     {replay && <div className="replay-latency-source">{t('来源历史：{start} — {end}', { start: fullDateTime(replay.source.start), end: fullDateTime(replay.source.end) })}</div>}
     <div className="metrics-grid">{LATENCY_CARDS.map(card => <LatencyCard key={card.key} metricKey={card.key} metric={metrics[card.key]} loading={loading} language={language} kind="replay" emptyNote={emptyNote} observedAt={metrics[card.key].observedAt}/>)}</div>
-    <p className="replay-latency-note">{t(mode === 'demo' ? '演示延迟为模拟数据，不代表真实测量结果。' : '展示回放目标部署的近期平均延迟，可能包含其他业务流量；采集与缓存会带来更新延迟。')}</p>
+    <p className="replay-latency-note">{t('展示回放目标部署的近期平均延迟，可能包含其他业务流量；采集与缓存会带来更新延迟。')}</p>
   </section>;
 }

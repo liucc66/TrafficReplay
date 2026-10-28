@@ -30,7 +30,7 @@ test('KV starts immediately, full rate windows never include pre-task traffic an
   assert.equal(final.evaluatedAt,1131); assert.equal(final.settleAfter,1161);
   assert.deepEqual(replayCachePlan(ended,9999,config),final);
   assert.equal(replayCachePlan({...task,status:'succeeded',finishedAt:1001},2000,config)?.rateRange,undefined);
-  for(const status of ['paused','draining','cancelling'] as const) assert.equal(replayCachePlan({...task,status},1200,config)?.evaluatedAt,1200);
+  for(const status of ['draining','cancelling'] as const) assert.equal(replayCachePlan({...task,status},1200,config)?.evaluatedAt,1200);
 });
 
 test('derived KV card tracks the curve: last defined point while running, earliest peak when terminal', () => {

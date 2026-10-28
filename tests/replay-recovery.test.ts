@@ -60,12 +60,6 @@ test('refresh storage keeps non-secret context and the original pending idempote
     assert.equal(readSnapshot('burst').replay?.speed,'burst');
     saveSnapshot('invalid-speed',{replay:{...replay,speed:'fast'} as any});
     assert.equal(readSnapshot('invalid-speed').replay,undefined);
-    const paused=restoreReplay({...task,status:'paused',pausable:false,resumable:true,paused_at:310,paused_seconds:12}, {}, replay);
-    saveSnapshot('test',{replay:paused});
-    assert.equal(readSnapshot('test').replay?.status,'paused');
-    assert.equal(readSnapshot('test').replay?.resumable,true);
-    assert.equal(readSnapshot('test').replay?.pausedAt,310);
-    assert.equal(readSnapshot('test').replay?.pausedSeconds,12);
     const body={source_model:'source-alias',target_model:'target-alias',start_time:100,end_time:200,speed:5};
     savePending('test',{key:'original-key',body,signature:JSON.stringify(body),context:{...replay,id:''}});
     assert.equal(readPending('test')?.key,'original-key');

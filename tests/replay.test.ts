@@ -55,35 +55,3 @@ test('failed processing may be 100 percent and cancelling remains an active task
   for(const status of ['succeeded','failed','cancelled'] as const)assert(isTerminalReplay(status));
   assert.equal(replayPercent({requestCount:10,completedCount:12}),100);
 });
-
-test('pause keeps progress active, resumes the same task and rejects stale snapshots', () => {
-  const running=applyReplayResponse({status:'running',revision:1,request_count:10,sent_count:4,completed_count:2,pausable:true,resumable:false,cancellable:true},initial);
-  const paused=applyReplayResponse({status:'paused',revision:2,paused_at:310,pausable:false,resumable:true},running);
-  assert.equal(paused.status,'paused');
-  assert.equal(isTerminalReplay(paused.status),false);
-  assert.equal(paused.pausable,false);
-  assert.equal(paused.resumable,true);
-  assert.equal(paused.cancellable,true);
-  const progressed=applyReplayResponse({status:'paused',revision:3,completed_count:4},paused);
-  assert.equal(progressed.completedCount,4);
-  assert.equal(progressed.sentCount,4);
-  assert.equal(applyReplayResponse({status:'running',revision:1},progressed),progressed);
-  const resumed=applyReplayResponse({status:'running',revision:4,paused_at:null,paused_seconds:12,pausable:true,resumable:false},progressed);
-  assert.equal(resumed.id,running.id);
-  assert.equal(resumed.pausedAt,undefined);
-  assert.equal(resumed.pausedSeconds,12);
-  assert.equal(resumed.pausable,true);
-  assert.equal(resumed.resumable,false);
-  const cancelling=applyReplayResponse({status:'cancelling',revision:5},paused);
-  assert.equal(cancelling.resumable,false);
-  assert.equal(applyReplayResponse({status:'paused',revision:6,resumable:true},cancelling).status,'cancelling');
-});
-
-test('legacy responses never invent pause capability across preparing and running', () => {
-  const preparing=applyReplayResponse({status:'preparing'},initial);
-  const running=applyReplayResponse({status:'running'},preparing);
-  assert.equal(running.pausable,undefined);
-  assert.equal(running.resumable,undefined);
-  const cached={...running,pausable:true};
-  assert.equal(applyReplayResponse({replay_id:cached.id,status:'running'},cached).pausable,undefined);
-});

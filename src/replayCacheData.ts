@@ -159,29 +159,3 @@ export async function fetchReplayCache(replay: Replay, plan: CachePlan, config: 
 export function retainReplayCache(previous: CacheData, next: CacheData): CacheData {
   return Object.fromEntries((Object.keys(next) as CacheMetricKey[]).map(key => [key, Object.fromEntries((['current', 'trend'] as const).map(kind => [kind, next[key][kind].error ? { ...previous[key][kind], error: next[key][kind].error } : next[key][kind]]))])) as CacheData;
 }
-
-export function demoReplayCache(plan: CachePlan, config: ReplayCacheConfig): CacheData {
-  const data = emptyCacheData();
-  for (const key of ['kv', 'hitRate', 'hitTokens'] as const) {
-    const range = key === 'kv' ? plan.range : plan.rateRange;
-    if (!range) continue;
-    const timestamps: number[] = [];
-    const step = Math.max(config.scrapeSeconds, Math.ceil((range.end - range.start) / 120));
-    for (let time = range.start; time < range.end; time += step) timestamps.push(time);
-    timestamps.push(range.end);
-    const series = (key === 'kv' ? ['instance=demo-worker-0', 'instance=demo-worker-1'] : ['Deployment']).map((name, index) => ({
-      id: name, name, points: timestamps.map(timestamp => {
-        const age = timestamp - plan.range.start;
-        const base = 1 - Math.exp(-age / 140);
-        return { timestamp, value: key === 'kv' ? 22 + base * (42 - index * 14) + Math.sin(age / 50) * 5 : key === 'hitRate' ? 14 + base * 54 : 180 + base * 1100 };
-      }),
-    }));
-    data[key].trend = { series, observedAt: plan.evaluatedAt };
-    // KV 与后端模式同源：从趋势推导当前值，终态显示全程峰值。
-    if (key === 'kv') { data[key].current = deriveKvCurrent(data[key].trend, plan.terminal); continue; }
-    const current = series.map(s => ({ ...s, points: [s.points.at(-1)!] }));
-    const max = current.reduce((a, b) => a.points[0].value > b.points[0].value ? a : b);
-    data[key].current = { series: current, value: max.points[0].value, name: max.name, observedAt: plan.evaluatedAt };
-  }
-  return data;
-}

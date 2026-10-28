@@ -128,14 +128,3 @@ export async function fetchReplayTrend(replay: Replay, plan: ReplayTrendPlan, co
 export function retainReplayTrend(previous: ReplayTrendData, next: ReplayTrendData): ReplayTrendData {
   return next.error ? { ...previous, error: next.error } : next;
 }
-
-export function demoReplayTrend(replay: Replay, plan: ReplayTrendPlan, config: ReplayTrendConfig): ReplayTrendData {
-  const step = Math.max(config.scrapeSeconds, Math.ceil((plan.range.end - plan.range.start) / 100));
-  const points: Point[] = [];
-  // 演示也只覆盖完整窗口后的查询网格，避免让真实后端的等待期看起来像缺陷。
-  for (let timestamp = plan.range.start; timestamp <= plan.range.end; timestamp += step) {
-    points.push({ timestamp, value: 180 + Math.sin((timestamp - plan.range.start) / 47) * 35 + Math.cos((timestamp - plan.range.start) / 23) * 12 });
-  }
-  const name = replay.metricsLabels?.model_name || replay.metricsName;
-  return { series: [{ id: name, name, points }], observedAt: plan.evaluatedAt };
-}

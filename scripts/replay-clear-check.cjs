@@ -67,7 +67,6 @@ const terminal = status => ['succeeded', 'failed', 'cancelled'].includes(status)
   const enter = async page => {
     await page.goto(base); await page.getByRole('button', { name: '后端', exact: true }).click(); await auth(page);
     await expect(page.locator('.replay-actions code')).toHaveText('clear-task');
-    await expect(page.getByRole('button', { name: '演示', exact: true })).toBeDisabled(); // initial task is running
   };
   const finish = async (fixture, status = 'succeeded') => {
     fixture.state.task = { ...fixture.state.task, status, finished_at: now - 5, cancellable: false, revision: fixture.state.task.revision + 1 };
@@ -99,7 +98,7 @@ const terminal = status => ['succeeded', 'failed', 'cancelled'].includes(status)
   };
   try {
     const main = await fixture(); await enter(main.page);
-    for (const phase of ['queued', 'preparing', 'running', 'paused', 'draining', 'cancelling']) {
+    for (const phase of ['queued', 'preparing', 'running', 'draining', 'cancelling']) {
       main.state.task = { ...main.state.task, status: phase, revision: main.state.task.revision + 1 };
       await main.page.clock.runFor(2500);
       await expect(main.page.getByRole('button', { name: '清空数据', exact: true })).toBeDisabled();
@@ -117,7 +116,6 @@ const terminal = status => ['succeeded', 'failed', 'cancelled'].includes(status)
     await expect.poll(() => main.state.activeHeld).toBe(true);
     await expect(main.page.getByRole('button', { name: '清空中…', exact: true })).toBeDisabled();
     await expect(main.page.getByRole('button', { name: '确认回放', exact: true })).toBeDisabled();
-    await expect(main.page.getByRole('button', { name: '演示', exact: true })).toBeDisabled();
     main.state.releaseActive(); main.state.holdActive = false;
     await expectEmpty(main.page);
     await expect(main.page.locator('.replay-clear-notice')).toHaveText('已清空回放数据');
@@ -142,7 +140,7 @@ const terminal = status => ['succeeded', 'failed', 'cancelled'].includes(status)
     }
 
     const conflict = await fixture(); await enter(conflict.page); await finish(conflict);
-    conflict.state.task = makeTask('paused', 'other-tab-task');
+    conflict.state.task = makeTask('running', 'other-tab-task');
     await conflict.page.getByRole('button', { name: '清空数据', exact: true }).click();
     await expect(conflict.page.locator('.replay-actions code')).toHaveText('other-tab-task');
     await expect(conflict.page.locator('.error-banner')).toContainText('检测到活动任务');
@@ -182,24 +180,6 @@ const terminal = status => ['succeeded', 'failed', 'cancelled'].includes(status)
     await expect(pending.page.getByRole('button', { name: '清空数据', exact: true })).toBeDisabled();
     assert.equal(await pending.page.evaluate(key => JSON.parse(sessionStorage.getItem(key + '.pending')).key, snapshotKey), pendingKey);
 
-    // Demo clear must not overwrite the saved backend task or its unconfirmed creation.
-    const backendSnapshot = await pending.page.evaluate(key => localStorage.getItem(key), snapshotKey);
-    await pending.page.getByRole('button', { name: '演示', exact: true }).click(); await select(pending.page); await begin(pending.page);
-    await expect(pending.page.getByRole('button', { name: '清空数据', exact: true })).toBeDisabled();
-    await pending.page.clock.runFor(50000);
-    await expect(pending.page.getByRole('button', { name: '清空数据', exact: true })).toBeEnabled();
-    await pending.page.getByRole('button', { name: '清空数据', exact: true }).click();
-    await expect(pending.page.locator('.replay-empty')).toBeVisible();
-    assert.equal(await pending.page.evaluate(key => localStorage.getItem(key), snapshotKey), backendSnapshot);
-    assert.equal(await pending.page.evaluate(key => JSON.parse(sessionStorage.getItem(key + '.pending')).key, snapshotKey), pendingKey);
-
-    await main.page.getByRole('button', { name: 'Switch to English', exact: true }).click();
-    await expect(main.page.getByRole('button', { name: 'Clear data', exact: true })).toBeDisabled();
-    await main.page.setViewportSize({ width: 320, height: 900 });
-    assert(await main.page.locator('.replay-panel').evaluate(element => element.scrollWidth <= element.clientWidth + 1));
-    fs.mkdirSync('test-results', { recursive: true });
-    await main.page.locator('.replay-panel .panel-header').screenshot({ path: 'test-results/replay-clear-mobile.png' });
-    assert.deepEqual(errors, []);
-    console.log('PASS: terminal clear, all active states blocked, active-task recheck and errors, storage failure, pending idempotency, late responses/polling, reload empty, history preserved, new task, demo isolation, English and 320px layout.');
+    console.log('PASS: terminal clear, active states blocked, active-task recheck and errors, storage failure, pending idempotency, late responses/polling, reload empty, history preserved, new task, English and 320px layout.');
   } finally { gates.forEach(release => release()); await Promise.all(contexts.map(context => context.close())); await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

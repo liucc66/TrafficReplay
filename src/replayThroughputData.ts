@@ -115,9 +115,3 @@ export function applyThroughputResult(previous: ThroughputData, direction: Token
   } else data.total = { ...previous.total, error: '总吞吐等待同轮输入与输出数据' };
   return data;
 }
-
-export function demoThroughput(direction: TokenDirection, plan: ReplayTrendPlan, config: ReplayThroughputConfig): TokenObservation {
-  const points: Point[] = [], step = throughputStep(plan, config);
-  for (let timestamp = plan.range.start; timestamp <= plan.range.end; timestamp += step) points.push({ timestamp, value: (direction === 'input' ? 1600 : 800) * (1 + .2 * Math.sin(timestamp / 43)) });
-  return { points, observedAt: plan.evaluatedAt };
-}

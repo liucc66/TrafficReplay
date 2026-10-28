@@ -1,6 +1,6 @@
-/** 后端模式取 Prometheus 的 model_name 标签，演示模式取 demoModels。 */
+/** 模型选项来自 Prometheus 的 model_name 标签。 */
 export interface Model {
-  id: string; // 下拉框选中值；真实模式为 Prometheus model_name。
+  id: string; // 下拉框选中值；与 Prometheus model_name 对应。
   name: string; // 页面展示实际指标中的模型名称。
   provider?: string;
   metricsName?: string; // vLLM 指标的 model_name；未提供时回退 name。
@@ -30,13 +30,9 @@ export interface Replay {
   modelName: string; // 目标模型显示名。
   metricsName: string; // 目标部署在 Prometheus 中的 model_name。
   source: TimeRange; // 创建任务时复制的历史选区，用于查询原始请求档案。
-  status: 'queued' | 'preparing' | 'running' | 'paused' | 'draining' | 'cancelling' | 'succeeded' | 'failed' | 'cancelled';
+  status: 'queued' | 'preparing' | 'running' | 'draining' | 'cancelling' | 'succeeded' | 'failed' | 'cancelled';
   speed?: ReplaySpeed;
   cancellable?: boolean;
-  pausable?: boolean;
-  resumable?: boolean;
-  pausedAt?: number;
-  pausedSeconds?: number;
   cancelRequestedAt?: number;
   revision?: number;
   startedAt?: number; // 后端 started_at：实际开始打流的 Unix 秒，不是按钮点击时间。

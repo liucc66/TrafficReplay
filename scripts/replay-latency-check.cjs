@@ -85,25 +85,6 @@ const base=process.env.CHECK_BASE_URL||'http://127.0.0.1:4173';
     assert.equal(replayQueries().length,replayCount,'left filters must not restart replay latency');
     await expect(ttft.locator('.metric-value')).toContainText('0.222');
 
-    // 后端侧暂停（如经 API 手动暂停）：无按钮入口时前端仍应如实显示并继续观测。
-    task={...task,status:'paused',pausable:false,resumable:true,revision:task.revision+1};
-    await page.clock.runFor(2500);
-    await expect(page.locator('.replay-panel .badge')).toHaveText('已暂停');
-    failTTFT=true;emptyITL=true;
-    const oldObserved=await ttft.locator('.metric-observed').innerText();
-    await page.clock.runFor(31000);
-    await expect(ttft).toContainText('查询失败 · 显示上次数据');
-    await expect(ttft.locator('.metric-value')).toContainText('0.222');
-    assert.equal(await ttft.locator('.metric-observed').innerText(),oldObserved);
-    await expect(section.locator('[data-replay-metric="itl"]')).toContainText('暂无样本');
-    await expect(page.locator('[data-metric="ttft"]')).not.toContainText('查询失败');
-    assert(replayQueries().length>replayCount,'paused replay keeps querying metrics');
-
-    failTTFT=false;emptyITL=false;
-    await page.reload();await authenticate();
-    await expect(ttft.locator('.metric-value')).toContainText('0.222');
-    await expect(page.locator('.replay-panel .badge')).toHaveText('已暂停');
-    assert.deepEqual(posts,[],'pause/resume buttons are gone; no POST may be sent');
     task={...task,status:'running',pausable:true,resumable:false,revision:task.revision+1};
     await page.clock.runFor(2500);
     await expect(page.locator('.replay-panel .badge')).toHaveText('回放中');
@@ -149,6 +130,6 @@ const base=process.env.CHECK_BASE_URL||'http://127.0.0.1:4173';
     await expect(ttft.locator('.metric-observed')).toHaveCount(0);
     assert.equal(replayQueries().length,beforeNewTask,'new unstarted task must clear old values without querying');
     assert.deepEqual(errors,[]);
-    console.log('PASS: existing cards unchanged; replay-only target/window, warm-up, partial failure timestamps, paused-state display and observation, reload, slow-query cancellation, terminal fixed-time recovery, manual refresh, English and 320px layout.');
+    console.log('PASS: existing cards unchanged; replay-only target/window, warm-up, partial failure timestamps, reload, slow-query cancellation, terminal fixed-time recovery, manual refresh, English and 320px layout.');
   }finally{if(release)release();await browser.close();}
 })().catch(error=>{console.error(error);process.exit(1);});

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { DEFAULT_API_CONFIG } from '../src/apiConfig';
 import { requestPrometheus, setMetricsAuth } from '../src/data';
 import { replayTrendCanSettle, replayTrendHasInsufficientWindow, replayTrendPlan } from '../src/replayTrendData';
-import { applyThroughputResult, createReplayThroughputConfig, demoThroughput, emptyThroughputData, fetchThroughput, parseThroughput, throughputQuery, throughputStep, throughputTarget } from '../src/replayThroughputData';
+import { applyThroughputResult, createReplayThroughputConfig, emptyThroughputData, fetchThroughput, parseThroughput, throughputQuery, throughputStep, throughputTarget } from '../src/replayThroughputData';
 import type { Replay } from '../src/types';
 
 const cfg = createReplayThroughputConfig({ VITE_REPLAY_THROUGHPUT_CONFIG: JSON.stringify({ targets: { alias: { requestedModel: 'litellm-alias', labels: { job: 'litellm' } } } }) });
@@ -56,8 +56,6 @@ test('throughput keeps zero, nonfinite gaps and omitted grid points without inte
   const result = parseThroughput(matrix([[1061, '0'], [1076, 'NaN'], [1106, '+Inf'], [1121, '12']]), target.requestedModel, plan, 15);
   assert.deepEqual(result.points.map(point => point.value), [0, undefined, undefined, undefined, 12]);
   assert.deepEqual(parseThroughput({ status: 'success', data: { resultType: 'matrix', result: [] } }, target.requestedModel, plan, 15).points, []);
-  const demo = demoThroughput('input', plan, cfg);
-  assert(demo.points.every(point => point.timestamp >= 1061 && point.timestamp <= 1121));
 });
 
 test('throughput rejects wrong models, unaggregated series, duplicates, negatives and invalid points', () => {

@@ -28,7 +28,7 @@ test('replay latency waits for post-start samples and never includes pre-start d
   assert.deepEqual(replayLatencyWindow(running, 1200, config), { evaluatedAt:1200,windowSeconds:60,settleAfter:undefined });
 });
 
-test('terminal observation stays fixed across reload while active pause and cancellation keep advancing', () => {
+test('terminal observation stays fixed across reload while active cancellation keeps advancing', () => {
   const ended = {...running,status:'cancelled' as const,finishedAt:1100.5};
   const beforeTail = replayLatencyWindow(ended, 1110, config)!;
   assert.equal(beforeTail.evaluatedAt,1110);
@@ -36,7 +36,7 @@ test('terminal observation stays fixed across reload while active pause and canc
   assert.equal(final.evaluatedAt,1131);
   assert.equal(final.settleAfter,1161);
   assert.deepEqual(replayLatencyWindow(JSON.parse(JSON.stringify(ended)), 9999, config),final);
-  for (const status of ['paused','cancelling','draining'] as const) {
+  for (const status of ['cancelling','draining'] as const) {
     assert.equal(replayLatencyWindow({...running,status},1400,config)?.evaluatedAt,1400);
   }
 });

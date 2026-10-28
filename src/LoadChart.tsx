@@ -12,7 +12,7 @@ import { translate, type Language } from './i18n';
  */
 interface Props {
   language?: Language; // 只翻译标题和 tooltip，查询时间、模型和选区保持不变。
-  data: LoadData; // matrix 适配结果，演示模式也生成相同结构。
+  data: LoadData; // matrix 适配结果。
   range: TimeRange; // 查询窗口，Unix 秒。
   selection?: TimeRange; // 父组件持有的选区，用于同步两条折线的阴影。
   onSelect?: (range: TimeRange | undefined) => void; // undefined 同步清除选区，不创建回放。

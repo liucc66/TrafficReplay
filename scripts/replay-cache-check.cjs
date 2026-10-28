@@ -105,15 +105,6 @@ const tokens=process.env.CHECK_CACHE_TOKENS!=='0';
     await expect(section.locator('[data-cache-chart="kv"] .cache-legend>span')).toHaveCount(2);
     if(tokens){await expect(hitRate.locator('.metric-value')).toContainText('—');await expect(hitTokens.locator('.metric-value')).toContainText('1,280');}
     failKV=false;emptyRate=false;
-    // 后端侧暂停（如经 API 手动暂停）：无按钮入口时前端仍应如实显示并继续观测。
-    task={...task,status:'paused',pausable:false,resumable:true,revision:task.revision+1};
-    await page.clock.runFor(2500);
-    await expect(section).toContainText('已暂停');
-    const pausedQueries=queries.length;await page.clock.runFor(31000);
-    await expect.poll(()=>queries.length).toBeGreaterThan(pausedQueries);await expect(kv).not.toContainText('查询失败');
-    await page.reload();await auth();
-    await expect(kv.locator('.metric-value')).toContainText('64');
-    assert.equal(posts.length,0,'pause/resume buttons are gone; no POST may be sent');
     assert.equal(queries.filter(q=>q.key==='kv'&&q.isRange).at(-1).start,Math.ceil(task.started_at));
     task={...task,status:'running',pausable:true,resumable:false,revision:task.revision+1};
     await page.clock.runFor(2500);await expect(section).toContainText('回放中');
@@ -177,6 +168,6 @@ const tokens=process.env.CHECK_CACHE_TOKENS!=='0';
     await expect(kv.locator('.metric-value')).toContainText('64');
     assert(queries.length>beforeNew,'first cache request should run at the next whole second');
     assert.deepEqual(errors,[]);
-    console.log(`PASS: cache ${tokens?'token counters':'unconfirmed units'}, instance maximum/curves, target isolation, failures, empty results, paused-state display and observation, reload, final historical time, relative tooltip, English and 320px layout.`);
+    console.log(`PASS: cache ${tokens?'token counters':'unconfirmed units'}, instance maximum/curves, target isolation, failures, empty results, reload, final historical time, relative tooltip, English and 320px layout.`);
   }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exit(1);});

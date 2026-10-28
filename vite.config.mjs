@@ -59,9 +59,7 @@ export function createBackendProxy(env) {
     const status = env.VITE_REPLAY_STATUS_PATH || '/api/replays/{id}';
     const active = env.VITE_REPLAY_ACTIVE_PATH || '/api/replays/active';
     const cancel = env.VITE_REPLAY_CANCEL_PATH || '/api/replays/{id}/cancel';
-    const pause = env.VITE_REPLAY_PAUSE_PATH || '/api/replays/{id}/pause';
-    const resume = env.VITE_REPLAY_RESUME_PATH || '/api/replays/{id}/resume';
-    const prefixes = new Set([create,status.split('{id}')[0].replace(/\/+$/,''),active,cancel.split('{id}')[0].replace(/\/+$/,''),pause.split('{id}')[0].replace(/\/+$/,''),resume.split('{id}')[0].replace(/\/+$/,'')]);
+    const prefixes = new Set([create,status.split('{id}')[0].replace(/\/+$/,''),active,cancel.split('{id}')[0].replace(/\/+$/,'')]);
     for(const prefix of prefixes) {
       if(!prefix.startsWith('/api/')||/[?#\s\\]/.test(prefix))throw new Error('回放代理路径应以 /api/ 开头，不含查询参数或空格');
       const match = '^' + prefix.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '(?:$|[/?])';

@@ -94,12 +94,6 @@ const fullTask=(alias='edge-model')=>({replay_id:'edge-task',status:'running',mo
     await uncertain.page.getByRole('button',{name:'重试原创建请求',exact:true}).click();
     await expect.poll(()=>uncertain.state.creates.length).toBe(2);
     assert.equal((await pending(uncertain.page))[0].key,original.key,'a rejected retry must not erase an earlier uncertain attempt');
-    await uncertain.page.getByRole('button',{name:'演示',exact:true}).click();
-    await expect(uncertain.page.getByRole('button',{name:'重试原创建请求',exact:true})).toHaveCount(0);
-    assert.equal((await pending(uncertain.page))[0].key,original.key);
-    await select(uncertain.page);await begin(uncertain.page);
-    await expect(uncertain.page.locator('.replay-actions code')).toContainText('demo-');
-    assert.equal((await pending(uncertain.page))[0].key,original.key);assert.equal(uncertain.state.creates.length,2);
     await uncertain.page.getByRole('button',{name:'取消回放',exact:true}).click();
     await expect(uncertain.page.locator('.replay-panel .badge')).toHaveText('已取消');
     await uncertain.page.getByRole('button',{name:'后端',exact:true}).click();
@@ -162,6 +156,6 @@ const fullTask=(alias='edge-model')=>({replay_id:'edge-task',status:'running',mo
     await page.mouse.move(bounds.x+bounds.width*.6,bounds.y+100,{steps:8});await page.mouse.up();
     await expect(page.getByRole('button',{name:'确认回放',exact:true})).toBeEnabled();
     assert.deepEqual(errors,[]);
-    console.log('PASS: rejected creation unlocks new input; unknown attempts keep original keys across demo/backend; server labels restore history and aliases; failed series retain data while successful empty results clear it; toolbox clear synchronizes selection. Auth='+ (proxy?'proxy':'manual'));
+    console.log('PASS: rejected creation unlocks new input; unknown attempts keep original keys across retries; server labels restore history and aliases; failed series retain data while successful empty results clear it; toolbox clear synchronizes selection. Auth='+ (proxy?'proxy':'manual'));
   }finally{await Promise.all(contexts.map(context=>context.close()));await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

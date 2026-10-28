@@ -7,7 +7,6 @@ import type { Language } from './i18n';
  * 真实指标：vLLM /metrics → Prometheus → 看板后端 /api/prometheus/*
  *          → 本文件解析 vector/matrix → App 状态 → 指标卡 / LoadChart。
  * 模型列表：vLLM /metrics → Prometheus model_name 标签 → fetchModels → 模型下拉框。
- * 演示数据：demoModels / demoLoad 在浏览器生成，不读取后端或发送推理请求。
  * 后端返回原样 Prometheus JSON；历史 gauge 在 PromQL 聚合，延迟的 engine 均值在解析时合并。
  */
 type Labels = Record<string, string>;
@@ -327,27 +326,5 @@ export async function fetchMetrics(modelName: string, windowSeconds: number, con
   const data = {} as Metrics;
   results.forEach((r, i) => { data[keys[i]] = r.status === 'fulfilled' ? r.value : { error: r.reason.message }; if(r.status === 'rejected') console.warn(r.reason); });
   return data;
-}
-// 本地演示模型，与 /api/litellm/model/info 无关。
-export const demoModels: Model[] = [
-  { id: 'Qwen3-32B', name: 'Qwen3-32B', provider: 'vLLM' },
-  { id: 'DeepSeek-R1-Distill-70B', name: 'DeepSeek-R1-Distill-70B', provider: 'vLLM' },
-  { id: 'Llama-3.3-70B', name: 'Llama-3.3-70B', provider: 'vLLM' }
-];
-/**
- * 在整个传入窗口一次性生成 61 个模拟点，不是逐点到达的实时数据。
- * optimized 只应用预设缩放系数示意回放结果，不代表真实测得的优化收益。
- */
-export function demoLoad(modelId: string, range: TimeRange, optimized = false): LoadData {
-  const size = 61, factor = 0.85 + modelId.length % 5 / 10;
-  const build = (waiting: boolean): Point[] => Array.from({ length: size }, (_, i) => {
-    const t = i / (size - 1);
-    const peak = Math.exp(-Math.pow((t - .45) / .15, 2));
-    const second = Math.exp(-Math.pow((t - .79) / .065, 2));
-    const wave = Math.sin(i * .8) * 2 + Math.cos(i * .36) * 3;
-    const value = waiting ? (peak * 49 + second * 19 + wave) * (optimized ? .23 : 1) : (16 + peak * 40 + second * 26 + wave) * (optimized ? .75 : 1);
-    return { timestamp: Math.round(range.start + t * (range.end - range.start)), value: Math.round(Math.max(0, value) * factor) };
-  });
-  return { running: [{ id: modelId, name: modelId, points: build(false) }], waiting: [{ id: modelId, name: modelId, points: build(true) }], errors: [] };
 }
 export const emptyMetrics: Metrics = { ttft: {}, e2e: {}, itl: {}, tpot: {}, qt: {} };

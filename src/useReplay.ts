@@ -5,18 +5,17 @@ import { clearReplaySnapshot, readPending, readSnapshot, savePending, saveSnapsh
 import { createUuid } from './uuid';
 import type { Replay } from './types';
 
-export interface ReplayPaths { create: string; status: string; active: string; cancel: string; pause: string; resume: string }
+export interface ReplayPaths { create: string; status: string; active: string; cancel: string }
 const lightweight=(path:string)=>path+(path.includes('?')?'&':'?')+'view=status';
 const taskPath=(path:string,id:string)=>path.replace('{id}',encodeURIComponent(id));
 
-export function useReplay({mode,auth,authReady,scope,paths,metricsMap}:{mode:'demo'|'backend';auth:ClientOptions;authReady:boolean;scope:string;paths:ReplayPaths;metricsMap:Record<string,string>}) {
-  const [replay,setReplay]=useState<Replay | undefined>(()=>mode==='backend'?readSnapshot(scope).replay:undefined);
+export function useReplay({auth,authReady,scope,paths,metricsMap}:{auth:ClientOptions;authReady:boolean;scope:string;paths:ReplayPaths;metricsMap:Record<string,string>}) {
+  const [replay,setReplay]=useState<Replay | undefined>(()=>readSnapshot(scope).replay);
   const replayRef=useRef<Replay | undefined>(replay);
-  // 待确认操作属于真实后端；演示任务不能消费或清除它。
   const [backendPending,setBackendPending]=useState<PendingReplay | undefined>(()=>readPending(scope));
-  const pending=mode==='backend'?backendPending:undefined;
+  const pending=backendPending;
   const pendingRef=useRef(backendPending);
-  const [ready,setReady]=useState(mode==='demo');
+  const [ready,setReady]=useState(false);
   const [restoring,setRestoring]=useState(false);
   const [recoveryError,setRecoveryError]=useState('');
   const [actionError,setActionError]=useState('');
@@ -33,8 +32,8 @@ export function useReplay({mode,auth,authReady,scope,paths,metricsMap}:{mode:'de
   const setTask=useCallback((task:Replay | undefined)=>{
     replayRef.current=task;setReplay(task);
     if(task)setClearNotice('');
-    if(mode==='backend')saveSnapshot(scope,{...readSnapshot(scope),replay:task});
-  },[mode,scope]);
+    saveSnapshot(scope,{...readSnapshot(scope),replay:task});
+  },[scope]);
   const setOperation=useCallback((op:PendingReplay | undefined)=>{
     pendingRef.current=op;setBackendPending(op);savePending(scope,op);
   },[scope]);
@@ -50,7 +49,6 @@ export function useReplay({mode,auth,authReady,scope,paths,metricsMap}:{mode:'de
   useEffect(()=>{
     const token=++epoch.current;let live=true;
     setActionError('');setRecoveryError('');setRestoredId(undefined);setClearNotice('');
-    if(mode==='demo'){setTask(undefined);setReady(true);setRestoring(false);return()=>{live=false;};}
     setReady(false);
     const cached=readSnapshot(scope).replay;
     setTask(cached);
@@ -81,11 +79,11 @@ export function useReplay({mode,auth,authReady,scope,paths,metricsMap}:{mode:'de
       finally {if(current())setRestoring(false);}
     })();
     return()=>{live=false;};
-  },[mode,scope,paths.active,paths.status,authSignature,recoveryToken,adopt,setTask]);
+  },[scope,paths.active,paths.status,authSignature,recoveryToken,adopt,setTask]);
 
   useEffect(()=>{
     const id=replay?.id;
-    if(!id || !ready || (mode==='backend'&&!authReady))return;
+    if(!id || !ready || !authReady)return;
     let live=true,busy=false,failures=0,backoffUntil=0,timer:number|undefined;
     const schedule=(delay:number)=>{clearTimeout(timer);timer=window.setTimeout(()=>void poll(),delay);};
     const poll=async()=>{
@@ -95,12 +93,7 @@ export function useReplay({mode,auth,authReady,scope,paths,metricsMap}:{mode:'de
       if(Date.now()<backoffUntil){schedule(backoffUntil-Date.now());return;}
       busy=true;const token=epoch.current;
       try{
-        let raw;
-        if(mode==='demo'){
-          const replaySpeed=previous.speed,burst=replaySpeed==='burst',duration=replaySpeed==='burst'?45:45/(replaySpeed ?? 1),elapsed=Math.max(0,Date.now()/1000-(previous.startedAt || 0));
-          raw=previous.status==='cancelling'?{status:'cancelled',finished_at:Date.now()/1000,cancellable:false}
-            : {status:elapsed>=duration?'succeeded':burst||elapsed>=duration*.89?'draining':'running',sent_count:burst?previous.requestCount || 0:Math.min(previous.requestCount || 0,Math.floor((previous.requestCount || 0)*elapsed/(duration*.89))),completed_count:Math.min(previous.requestCount || 0,Math.floor((previous.requestCount || 0)*elapsed/duration)),finished_at:elapsed>=duration?(previous.startedAt || 0)+duration:undefined,cancellable:elapsed<duration,pausable:!burst&&elapsed<duration*.89,resumable:false};
-        } else raw=await request(lightweight(taskPath(paths.status,id)),{},authRef.current);
+        const raw=await request(lightweight(taskPath(paths.status,id)),{},authRef.current);
         const latest=replayRef.current;
         if(!live||epoch.current!==token||latest?.id!==id)return;
         const task=applyReplayResponse(raw,latest,undefined,metricsMap);
@@ -115,30 +108,30 @@ export function useReplay({mode,auth,authReady,scope,paths,metricsMap}:{mode:'de
         backoffUntil=Date.now()+(e instanceof ApiError&&e.status===429?e.retryAfterMs || 60000:Math.min(30000,5000*2**Math.min(failures-1,3)));
       }finally{
         busy=false;
-        if(live&&!document.hidden&&replayRef.current?.id===id&&!isTerminalReplay(replayRef.current.status))schedule(Math.max(mode==='demo'?3000:2000,backoffUntil-Date.now()));
+        if(live&&!document.hidden&&replayRef.current?.id===id&&!isTerminalReplay(replayRef.current.status))schedule(Math.max(2000,backoffUntil-Date.now()));
       }
     };
     const visible=()=>{if(!document.hidden){clearTimeout(timer);void poll();}};
     void poll();document.addEventListener('visibilitychange',visible);
     return()=>{live=false;clearTimeout(timer);document.removeEventListener('visibilitychange',visible);};
-  },[replay?.id,ready,mode,authSignature,pollToken,paths.status,metricsMap,setTask]);
+  },[replay?.id,ready,authSignature,pollToken,paths.status,metricsMap,setTask]);
 
   const submit=async(op:PendingReplay)=>{
     if(actionBusy.current || cancelBusy.current || !ready || (replayRef.current&&!isTerminalReplay(replayRef.current.status)))return;
     actionBusy.current=true;setSubmitting(true);setActionError('');
-    const token=epoch.current,retrying=mode==='backend'&&pendingRef.current?.key===op.key;
+    const token=epoch.current,retrying=pendingRef.current?.key===op.key;
     try{
-      if(mode==='backend')setOperation(op);
-      const raw=mode==='demo'?{replay_id:`demo-${createUuid()}`,status:op.body.speed==='burst'?'draining':'running',started_at:Date.now()/1000,request_count:Math.round((op.body.end_time-op.body.start_time)*2.8),sent_count:op.body.speed==='burst'?Math.round((op.body.end_time-op.body.start_time)*2.8):0,completed_count:0,cancellable:true,pausable:op.body.speed!=='burst',resumable:false,paused_seconds:0,speed:op.body.speed}:await request(paths.create,{method:'POST',headers:{'Idempotency-Key':op.key},body:op.signature},authRef.current);
+      setOperation(op);
+      const raw=await request(paths.create,{method:'POST',headers:{'Idempotency-Key':op.key},body:op.signature},authRef.current);
       if(epoch.current!==token)return;
-      adopt(raw,false,op.context);if(mode==='backend')setOperation(undefined);
+      adopt(raw,false,op.context);setOperation(undefined);
     }catch(e){
       if(epoch.current!==token)return;
-      if(mode==='backend' && e instanceof ApiError && e.status===409 && e.payload?.active_task){
+      if(e instanceof ApiError && e.status===409 && e.payload?.active_task){
         try{adopt(e.payload.active_task,true);setOperation(undefined);}catch(error){setActionError((error as Error).message);}
       }else{
         // 已有未确认尝试时，即使本次被拒绝，也不能据此断定原请求没有创建任务。
-        if(mode==='backend'&&!retrying&&e instanceof ApiError&&e.payload&&
+        if(!retrying&&e instanceof ApiError&&e.payload&&
           [400,401,403,404,405,413,415,422].includes(e.status))setOperation(undefined);
         setActionError(`创建回放失败：${(e as Error).message}`);
       }
@@ -146,20 +139,20 @@ export function useReplay({mode,auth,authReady,scope,paths,metricsMap}:{mode:'de
   };
   const begin=async(body:ReplayBody,context:Replay)=>{
     try {
-      const signature=JSON.stringify(body),existing=mode==='backend'?pendingRef.current:undefined;
+      const signature=JSON.stringify(body),existing=pendingRef.current;
       if(existing && existing.signature!==signature){setActionError('存在结果待确认的创建请求，请先重试原请求。');return;}
       await submit(existing || {key:createUuid(),signature,body,context});
     } catch(e) {
       setActionError(`创建回放失败：${(e as Error).message}`);
     }
   };
-  const retryPending=async()=>{if(mode==='backend'&&pendingRef.current)await submit(pendingRef.current);};
+  const retryPending=async()=>{if(pendingRef.current)await submit(pendingRef.current);};
   const cancel=async()=>{
     const task=replayRef.current;
     if(!task || !task.cancellable || cancelBusy.current || actionBusy.current || !ready)return;
     cancelBusy.current=true;setCancelling(true);setActionError('');const token=++epoch.current;
     try{
-      const raw=mode==='demo'?{status:'cancelling',cancellable:false,cancel_requested_at:Date.now()/1000}:await request(taskPath(paths.cancel,task.id),{method:'POST'},authRef.current);
+      const raw=await request(taskPath(paths.cancel,task.id),{method:'POST'},authRef.current);
       if(epoch.current===token&&replayRef.current?.id===task.id)setTask(applyReplayResponse(raw,replayRef.current,undefined,metricsMap));
     }catch(e){
       if(epoch.current!==token||replayRef.current?.id!==task.id)return;
@@ -179,12 +172,12 @@ export function useReplay({mode,auth,authReady,scope,paths,metricsMap}:{mode:'de
     : !replay?'暂无可清空的回放数据':'';
   const clear=async()=>{
     const task=replayRef.current;
-    if(clearDisabledReason || !task || !isTerminalReplay(task.status) || actionBusy.current || cancelBusy.current || (mode==='backend'&&pendingRef.current))return false;
+    if(clearDisabledReason || !task || !isTerminalReplay(task.status) || actionBusy.current || cancelBusy.current || pendingRef.current)return false;
     actionBusy.current=true;setClearing(true);setActionError('');setClearNotice('');
     const token=epoch.current;
     const current=()=>epoch.current===token && replayRef.current?.id===task.id;
     try{
-      if(mode==='backend'){
+      {
         const active=await request(lightweight(paths.active),{cache:'no-store'},authRef.current);
         if(!current())return false;
         if(active?.active===true){

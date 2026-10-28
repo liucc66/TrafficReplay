@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import { DEFAULT_API_CONFIG } from '../src/apiConfig';
 import { metricQueries } from '../src/data';
-import { demoReplayTrend, emptyReplayTrendData, fetchReplayTrend, parseReplayTrend, replayTrendHasInsufficientWindow, replayTrendPlan, replayTrendQuery, retainReplayTrend } from '../src/replayTrendData';
+import { emptyReplayTrendData, fetchReplayTrend, parseReplayTrend, replayTrendHasInsufficientWindow, replayTrendPlan, replayTrendQuery, retainReplayTrend } from '../src/replayTrendData';
 import type { Replay } from '../src/types';
 
 const config = { windowSeconds: 60, scrapeSeconds: 15 };
@@ -19,7 +19,7 @@ test('TTFT trend waits for a complete window and fixes the terminal interval acr
   assert.equal(final.evaluatedAt, 1131);
   assert.equal(final.settleAfter, 1161);
   assert.deepEqual(replayTrendPlan(JSON.parse(JSON.stringify(ended)), 9999, config), final);
-  for (const status of ['paused', 'draining', 'cancelling'] as const) {
+  for (const status of ['draining', 'cancelling'] as const) {
     assert.equal(replayTrendPlan({ ...replay, status }, 1200, config)?.range.end, 1200);
   }
 });
@@ -101,13 +101,6 @@ test('query errors retain successful history and time; successful empty response
   assert.deepEqual(retainReplayTrend(previous, emptyReplayTrendData()), emptyReplayTrendData());
 });
 
-test('demo TTFT respects the real warm-up window, query grid and target model', () => {
-  const plan = replayTrendPlan(replay, 1100, config)!;
-  const data = demoReplayTrend(replay, plan, config);
-  assert.equal(data.series[0].name, 'model-v2');
-  assert.equal(data.series[0].points[0].timestamp, plan.range.start);
-  assert(data.series[0].points.every(point => point.timestamp >= replay.startedAt! + config.windowSeconds && point.timestamp <= plan.range.end));
-});
 
 test('TTFT fetch makes one range request with bounded sampling, target model override, no throughput and no auth', async context => {
   const oldFetch = globalThis.fetch, oldWindow = globalThis.window;

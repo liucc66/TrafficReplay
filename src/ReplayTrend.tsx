@@ -4,12 +4,12 @@ import CacheTrend from './CacheTrend';
 import { promDuration } from './data';
 import { localizeMessage, translate, type Language } from './i18n';
 import { isTerminalReplay } from './replay';
-import { demoReplayTrend, emptyReplayTrendData, fetchReplayTrend, replayTrendCanSettle, replayTrendHasInsufficientWindow, replayTrendPlan, retainReplayTrend, type ReplayTrendConfig, type ReplayTrendData, type ReplayTrendPlan } from './replayTrendData';
+import { emptyReplayTrendData, fetchReplayTrend, replayTrendCanSettle, replayTrendHasInsufficientWindow, replayTrendPlan, retainReplayTrend, type ReplayTrendConfig, type ReplayTrendData, type ReplayTrendPlan } from './replayTrendData';
 import { fullDateTime } from './time';
 import type { Replay } from './types';
 
-export default function ReplayTrend({ replay, mode, api, config, language, refreshToken }: {
-  replay?: Replay; mode: 'demo' | 'backend'; api: ApiConfig; config: ReplayTrendConfig; language: Language; refreshToken: number;
+export default function ReplayTrend({ replay, api, config, language, refreshToken }: {
+  replay?: Replay; api: ApiConfig; config: ReplayTrendConfig; language: Language; refreshToken: number;
 }) {
   const t = (text: string, values?: Record<string, string | number>) => translate(language, text, values);
   const [data, setData] = useState<ReplayTrendData>(emptyReplayTrendData);
@@ -22,7 +22,7 @@ export default function ReplayTrend({ replay, mode, api, config, language, refre
   const terminal = !!replay && isTerminalReplay(replay.status);
   const insufficientWindow = !!replay && replayTrendHasInsufficientWindow(replay, config);
 
-  useEffect(() => { setData(emptyReplayTrendData()); setPlan(undefined); setSettled(false); setLoading(false); }, [replay?.id, replay?.startedAt, replay?.metricsName, labels, mode]);
+  useEffect(() => { setData(emptyReplayTrendData()); setPlan(undefined); setSettled(false); setLoading(false); }, [replay?.id, replay?.startedAt, replay?.metricsName, labels]);
 
   useEffect(() => {
     setSettled(false); setLoading(false);
@@ -43,7 +43,7 @@ export default function ReplayTrend({ replay, mode, api, config, language, refre
       clearTimeout(startTimer);
       busy = true; setLoading(true); setPlan(nextPlan);
       try {
-        const next = mode === 'demo' ? demoReplayTrend(task, nextPlan, config) : await fetchReplayTrend(task, nextPlan, config, api);
+        const next = await fetchReplayTrend(task, nextPlan, config, api);
         if (!live) return;
         setData(previous => retainReplayTrend(previous, next));
         if (replayTrendCanSettle(nextPlan, requestedAt)) { done = true; setSettled(true); }
@@ -58,7 +58,7 @@ export default function ReplayTrend({ replay, mode, api, config, language, refre
     const visible = () => { if (!document.hidden) void load(); };
     document.addEventListener('visibilitychange', visible);
     return () => { live = false; clearTimeout(startTimer); clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
-  }, [replay?.id, replay?.startedAt, replay?.finishedAt, replay?.metricsName, labels, terminal, insufficientWindow, mode, api, config, refreshToken]);
+  }, [replay?.id, replay?.startedAt, replay?.finishedAt, replay?.metricsName, labels, terminal, insufficientWindow, api, config, refreshToken]);
 
   const range = useMemo(() => replay?.startedAt !== undefined
     ? { start: replay.startedAt, end: Math.max(replay.startedAt + config.scrapeSeconds, plan?.range.end ?? replay.startedAt + config.windowSeconds) }
@@ -83,6 +83,6 @@ export default function ReplayTrend({ replay, mode, api, config, language, refre
       <CacheTrend series={data.series} range={range} relativeOrigin={relative ? range.start : undefined} percent={false} unit="ms" decimals={1} language={language} label={t('首 Token 延迟')} emptyNote={emptyNote}/>
       <div className="replay-trend-note"><span>{t('按回放目标部署统计，可能包含其他业务流量')}</span>{data.observedAt !== undefined && <span>{t('观测于 {time}', { time: fullDateTime(data.observedAt) })}</span>}</div>
     </div></div>
-    <p className="replay-latency-note">{t(mode === 'demo' ? '演示趋势为模拟数据，不代表真实测量结果。' : '首 Token 延迟沿用现有延迟指标口径，展示窗口平均值；缺失或非有限样本显示为断点。')}</p>
+    <p className="replay-latency-note">{t('首 Token 延迟沿用现有延迟指标口径，展示窗口平均值；缺失或非有限样本显示为断点。')}</p>
   </section>;
 }

@@ -14,7 +14,6 @@ export default function ReplayProgress({ replay, language }: { replay: Replay; l
     : total === 0 ? t('此选区没有可回放请求')
     : replay.status === 'draining' ? t('请求已全部发送，等待在途响应结束')
     : replay.status === 'cancelling' ? t('正在取消，等待已提交请求处理结束')
-    : replay.status === 'paused' ? t('已暂停发送新请求；在途请求仍会完成，继续后保留剩余请求间隔。')
     : replay.status === 'cancelled' ? t('任务已停止，保留实际进度') : '';
 
   return <div className="replay-progress" data-status={replay.status} aria-label={t('回放任务进度')}>

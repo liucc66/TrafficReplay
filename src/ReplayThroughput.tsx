@@ -5,15 +5,15 @@ import { promDuration } from './data';
 import { localizeMessage, translate, type Language } from './i18n';
 import { isTerminalReplay } from './replay';
 import { replayTrendCanSettle, replayTrendHasInsufficientWindow, replayTrendPlan, type ReplayTrendPlan } from './replayTrendData';
-import { applyThroughputResult, demoThroughput, emptyThroughputData, fetchThroughput, throughputTarget, type ReplayThroughputConfig, type ThroughputData, type TokenDirection } from './replayThroughputData';
+import { applyThroughputResult, emptyThroughputData, fetchThroughput, throughputTarget, type ReplayThroughputConfig, type ThroughputData, type TokenDirection } from './replayThroughputData';
 import { fullDateTime } from './time';
 import type { Replay } from './types';
 
 const names = { input: '输入 Token', output: '输出 Token', total: '总 Token' };
 const directions = ['input', 'output'] as const;
 
-export default function ReplayThroughput({ replay, mode, api, config, language, refreshToken }: {
-  replay?: Replay; mode: 'demo' | 'backend'; api: ApiConfig; config: ReplayThroughputConfig; language: Language; refreshToken: number;
+export default function ReplayThroughput({ replay, api, config, language, refreshToken }: {
+  replay?: Replay; api: ApiConfig; config: ReplayThroughputConfig; language: Language; refreshToken: number;
 }) {
   const t = (text: string, values?: Record<string, string | number>) => translate(language, text, values);
   const [data, setData] = useState<ThroughputData>(emptyThroughputData);
@@ -25,9 +25,9 @@ export default function ReplayThroughput({ replay, mode, api, config, language, 
   const targetKey = JSON.stringify(target);
   const terminal = !!replay && isTerminalReplay(replay.status);
   const insufficient = !!replay && replayTrendHasInsufficientWindow(replay, config, config.tailSeconds);
-  const configured = mode === 'demo' || !!target;
+  const configured = !!target;
 
-  useEffect(() => { setData(emptyThroughputData()); setPlan(undefined); setSettled(false); setLoading(false); }, [replay?.id, replay?.modelId, replay?.startedAt, targetKey, mode]);
+  useEffect(() => { setData(emptyThroughputData()); setPlan(undefined); setSettled(false); setLoading(false); }, [replay?.id, replay?.modelId, replay?.startedAt, targetKey]);
   useEffect(() => {
     setSettled(false); setLoading(false);
     if (!replay || replay.startedAt === undefined || !configured || insufficient) return;
@@ -50,7 +50,7 @@ export default function ReplayThroughput({ replay, mode, api, config, language, 
       // 每个响应到达即可独立展示；另一条慢查询不阻塞已成功的曲线或回放进度。
       const results = await Promise.all(directions.map(async (direction: TokenDirection) => {
         try {
-          const result = mode === 'demo' ? demoThroughput(direction, nextPlan, config) : await fetchThroughput(target!, direction, nextPlan, config, api, batchStartedAt);
+          const result = await fetchThroughput(target!, direction, nextPlan, config, api, batchStartedAt);
           if (live) setData(previous => applyThroughputResult(previous, direction, result, batch));
           return true;
         } catch (error) {
@@ -68,7 +68,7 @@ export default function ReplayThroughput({ replay, mode, api, config, language, 
     const visible = () => { if (!document.hidden) void load(); };
     document.addEventListener('visibilitychange', visible);
     return () => { live = false; clearTimeout(startTimer); clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
-  }, [replay?.id, replay?.modelId, replay?.startedAt, replay?.finishedAt, terminal, targetKey, configured, insufficient, mode, api, config, refreshToken]);
+  }, [replay?.id, replay?.modelId, replay?.startedAt, replay?.finishedAt, terminal, targetKey, configured, insufficient, api, config, refreshToken]);
 
   const range = useMemo(() => replay?.startedAt !== undefined
     ? { start: replay.startedAt, end: Math.max(replay.startedAt + config.scrapeSeconds, plan?.range.end ?? replay.startedAt + config.windowSeconds) }
@@ -95,6 +95,6 @@ export default function ReplayThroughput({ replay, mode, api, config, language, 
       <CacheTrend series={series} range={range} relativeOrigin={relative ? range.start : undefined} percent={false} unit="token/s" language={language} label={t('Token 吞吐率趋势')} emptyNote={loading ? t('查询中…') : t(baseNote)} interactiveLegend/>
       <div className="replay-trend-note">{(['input', 'output', 'total'] as const).map(key => data[key].observedAt !== undefined && <span key={key}>{t(names[key])} · {t('观测于 {time}', { time: fullDateTime(data[key].observedAt!) })}</span>)}</div>
     </div>
-    <p className="replay-latency-note">{t(mode === 'demo' ? '演示趋势为模拟数据，不代表真实测量结果。' : '先 rate 后求和；缺失或非有限值显示为断点。总吞吐仅合并同轮有效样本；这是记账速率，非逐 Token 解码速度。')}</p>
+    <p className="replay-latency-note">{t('先 rate 后求和；缺失或非有限值显示为断点。总吞吐仅合并同轮有效样本；这是记账速率，非逐 Token 解码速度。')}</p>
   </section>;
 }

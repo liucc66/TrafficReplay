@@ -18,7 +18,6 @@ const { chromium, expect } = require('@playwright/test');
       VITE_REPLAY_MODEL_METRICS_MAP: '{"gray-target":"shared-model","gray-target-2":"shared-model"}',
       VITE_REPLAY_CREATE_PATH: '/api/replays', VITE_REPLAY_STATUS_PATH: '/api/replays/{id}',
       VITE_REPLAY_ACTIVE_PATH: '/api/replays/active', VITE_REPLAY_CANCEL_PATH: '/api/replays/{id}/cancel',
-      VITE_REPLAY_PAUSE_PATH: '/api/replays/{id}/pause', VITE_REPLAY_RESUME_PATH: '/api/replays/{id}/resume',
       VITE_REPLAY_STORAGE_SCOPE: 'metrics-sources-check',
       VITE_PROMETHEUS_SCRAPE_INTERVAL_SECONDS: '60', VITE_REPLAY_LATENCY_WINDOW_SECONDS: '240',
       VITE_REPLAY_CACHE_CONFIG: '{"counterUnit":"tokens"}',

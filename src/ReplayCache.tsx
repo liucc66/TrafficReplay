@@ -5,7 +5,7 @@ import CacheTrend from './CacheTrend';
 import { formatValue, promDuration } from './data';
 import { localizeMessage, translate, type Language } from './i18n';
 import { isTerminalReplay } from './replay';
-import { demoReplayCache, emptyCacheData, fetchReplayCache, replayCachePlan, retainReplayCache, type CacheMetricKey, type CachePlan, type ReplayCacheConfig } from './replayCacheData';
+import { emptyCacheData, fetchReplayCache, replayCachePlan, retainReplayCache, type CacheMetricKey, type CachePlan, type ReplayCacheConfig } from './replayCacheData';
 import { fullDateTime } from './time';
 import type { Replay } from './types';
 
@@ -15,8 +15,8 @@ const cards = [
   { key: 'hitTokens', title: '命中 token/s', icon: Zap },
 ] as const;
 
-export default function ReplayCache({ replay, mode, api, config, language, refreshToken, taskStatus }: {
-  replay?: Replay; mode: 'demo' | 'backend'; api: ApiConfig; config: ReplayCacheConfig; language: Language; refreshToken: number; taskStatus?: string;
+export default function ReplayCache({ replay, api, config, language, refreshToken, taskStatus }: {
+  replay?: Replay; api: ApiConfig; config: ReplayCacheConfig; language: Language; refreshToken: number; taskStatus?: string;
 }) {
   const t = (text: string, values?: Record<string, string | number>) => translate(language, text, values);
   const [data, setData] = useState(emptyCacheData), [plan, setPlan] = useState<CachePlan>();
@@ -26,7 +26,7 @@ export default function ReplayCache({ replay, mode, api, config, language, refre
   const taskRef = useRef(replay); taskRef.current = replay;
   const labels = JSON.stringify(Object.entries(replay?.metricsLabels || {}).sort(([a], [b]) => a.localeCompare(b)));
   const terminal = !!replay && isTerminalReplay(replay.status);
-  useEffect(() => { setData(emptyCacheData()); setPlan(undefined); setSettled(false); setLoading(false); }, [replay?.id, replay?.startedAt, replay?.metricsName, labels, mode, counterUnit]);
+  useEffect(() => { setData(emptyCacheData()); setPlan(undefined); setSettled(false); setLoading(false); }, [replay?.id, replay?.startedAt, replay?.metricsName, labels, counterUnit]);
   useEffect(() => {
     if (!replay || replay.startedAt === undefined) return;
     let live = true, busy = false, done = false; setSettled(false);
@@ -45,7 +45,7 @@ export default function ReplayCache({ replay, mode, api, config, language, refre
       clearTimeout(startTimer);
       busy = true; setLoading(true); setPlan(nextPlan);
       try {
-        const next = mode === 'demo' ? demoReplayCache(nextPlan, observationConfig) : await fetchReplayCache(task, nextPlan, observationConfig, api);
+        const next = await fetchReplayCache(task, nextPlan, observationConfig, api);
         if (!live) return;
         setData(previous => retainReplayCache(previous, next));
         if (nextPlan.settleAfter !== undefined && requestedAt >= nextPlan.settleAfter && Object.values(next).every(item => !item.current.error && !item.trend.error)) { done = true; setSettled(true); }
@@ -62,10 +62,10 @@ export default function ReplayCache({ replay, mode, api, config, language, refre
     const visible = () => { if (!document.hidden) void load(); };
     document.addEventListener('visibilitychange', visible);
     return () => { live = false; clearTimeout(startTimer); clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
-  }, [replay?.id, replay?.startedAt, replay?.finishedAt, replay?.metricsName, labels, terminal, mode, api, observationConfig, refreshToken]);
+  }, [replay?.id, replay?.startedAt, replay?.finishedAt, replay?.metricsName, labels, terminal, api, observationConfig, refreshToken]);
 
-  const unitConfirmed = mode === 'demo' || counterUnit !== 'unknown';
-  const tokens = mode === 'demo' || counterUnit === 'tokens';
+  const unitConfirmed = counterUnit !== 'unknown';
+  const tokens = counterUnit === 'tokens';
   const baseNote = !replay ? '等待创建回放任务' : replay.startedAt === undefined ? terminal ? '任务已结束，未开始打流' : '等待实际打流开始时间' : '暂无样本 · 检查指标、标签与采集状态';
   const emptyNote = (key: CacheMetricKey) => t(key !== 'kv' && !unitConfirmed ? '请先确认缓存计数单位' : key === 'hitTokens' && !tokens ? '当前计数单位不是 token，无法换算 token/s' : key !== 'kv' && replay?.startedAt !== undefined && !plan?.rateRange ? terminal && settled ? '任务观测时段不足完整统计窗口' : '采集中 · 等待完整统计窗口' : baseNote);
   const errors = Object.values(data).some(item => item.current.error || item.trend.error);
@@ -80,9 +80,9 @@ export default function ReplayCache({ replay, mode, api, config, language, refre
     <div className="replay-latency-context"><span>{replay ? replay.metricsLabels?.model_name || replay.metricsName : t('等待创建回放任务')}</span>{replay && <><code>{replay.id}</code><span>{taskStatus}</span></>}
       <span role="status">{t(errors ? '部分指标查询失败，显示最近成功数据' : settled ? '最终观测已固定' : terminal && replay?.startedAt !== undefined ? '任务已结束，正在补采尾部指标' : loading ? '查询中…' : plan ? '持续观测中' : baseNote)}</span></div>
     {replay && <div className="replay-latency-source">{labelsText || t('仅按模型筛选，可能包含其他部署')}<br/>{t('来源历史：{start} — {end}', { start: fullDateTime(replay.source.start), end: fullDateTime(replay.source.end) })}</div>}
-    {mode === 'backend' && <div className="cache-unit-settings"><label>{t('缓存计数单位')}<select aria-label={t('缓存计数单位')} value={counterUnit} onChange={event => setCounterUnit(event.target.value as ReplayCacheConfig['counterUnit'])}>
+    <div className="cache-unit-settings"><label>{t('缓存计数单位')}<select aria-label={t('缓存计数单位')} value={counterUnit} onChange={event => setCounterUnit(event.target.value as ReplayCacheConfig['counterUnit'])}>
       <option value="unknown">{t('尚未确认')}</option><option value="tokens">{t('token 数')}</option><option value="blocks">{t('缓存块数')}</option><option value="requests">{t('请求数')}</option>
-    </select></label><span>{t('按实际指标定义选择；hits 和 queries 必须使用相同单位，仅 token 计数可展示 token/s。')}</span></div>}
+    </select></label><span>{t('按实际指标定义选择；hits 和 queries 必须使用相同单位，仅 token 计数可展示 token/s。')}</span></div>
     <div className="cache-cards">{cards.map(({ key, title, icon: Icon }) => {
       const current = data[key].current;
       const note = current.error ? t(current.value === undefined ? '查询失败 · 查看详情' : '查询失败 · 显示上次数据') : current.value === undefined ? emptyNote(key) : key === 'kv' ? t(terminal ? '回放期间实例峰值' : '当前实例最大值') : `${rateNote} · ${countNote}`;
@@ -101,6 +101,6 @@ export default function ReplayCache({ replay, mode, api, config, language, refre
       <CacheTrend series={data[key].trend.series} range={range} relativeOrigin={relative ? range.start : undefined} percent={key !== 'hitTokens'} language={language} label={t(title) + t('趋势')} emptyNote={emptyNote(key)}/>
       <div className="cache-chart-note">{key === 'kv' ? t('按实例分别展示，不相加') : `${rateNote} · ${unitConfirmed ? countNote : t('请先确认缓存计数单位')}`}{data[key].trend.observedAt !== undefined && <span>{t('观测于 {time}', { time: fullDateTime(data[key].trend.observedAt!) })}</span>}</div>
     </div>)}</div>
-    <p className="replay-latency-note">{t(mode === 'demo' ? '演示缓存指标为模拟数据，不代表真实测量结果。' : '指标属于回放目标部署，可能包含其他业务流量；无请求或缺失指标显示空值，采集与缓存会带来延迟。')}</p>
+    <p className="replay-latency-note">{t('指标属于回放目标部署，可能包含其他业务流量；无请求或缺失指标显示空值，采集与缓存会带来延迟。')}</p>
   </section>;
 }
