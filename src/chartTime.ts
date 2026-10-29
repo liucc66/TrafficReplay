@@ -28,7 +28,8 @@ export function chartTime(range: TimeRange, origin?: number) {
   const format = (value: number) => {
     if (relative) return formatRelativeTime(value, span);
     const p = timeParts(value / 1000);
-    const time = `${p.hour}:${p.minute}`;
+    // 秒级刻度保留秒以区分同一分钟内的位置；整分钟省略末尾 :00。
+    const time = `${p.hour}:${p.minute}` + (p.second === '00' ? '' : `:${p.second}`);
     return span >= 86400 ? `${p.month}/${p.day}\n${time}` : time;
   };
   return { relative, type: relative ? 'value' as const : 'time' as const, min: toAxis(range.start), max: toAxis(range.end), toAxis, fromAxis, format };
