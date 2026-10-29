@@ -1,3 +1,4 @@
+import { updateLoadAxis, type LoadAxisState } from './loadAxis';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Activity, Check, Languages, Layers3, LoaderCircle, Play, Radio, RefreshCw, Search, Settings2, Target, Trash2, X } from 'lucide-react';
 import LoadChart from './LoadChart';
@@ -40,7 +41,7 @@ const PATHS = {create:CREATE,status:STATUS,active:ACTIVE,cancel:CANCEL};
 const STORAGE_SCOPE = import.meta.env.VITE_REPLAY_STORAGE_SCOPE || `${CREATE}|${STATUS}|${ACTIVE}|${CANCEL}`;
 const PROXY_AUTH = import.meta.env.VITE_REPLAY_AUTH_MODE === 'proxy';
 const statusNames: Record<Replay['status'],string> = {queued:'等待开始',preparing:'准备请求',running:'回放中',draining:'等待处理完成',cancelling:'正在取消',succeeded:'已完成',failed:'失败',cancelled:'已取消'};
-function maxLoad(a: LoadData,b: LoadData) { const numbers=[...a.running,...a.waiting,...b.running,...b.waiting].flatMap(s=>s.points.map(p=>p.value)).filter((v):v is number=>v!==undefined&&Number.isFinite(v));return numbers.length?Math.max(10,Math.ceil(Math.max(...numbers)*1.15/10)*10):undefined; }
+
 
 export default function App() {
   const [saved]=useState(()=>readSnapshot(STORAGE_SCOPE));
@@ -235,8 +236,16 @@ export default function App() {
     const timestamp=fromInput(value);if(!Number.isFinite(timestamp))return;
     setSelection(s=>({...s??{start:range.start,end:range.end},[key]:timestamp}));
   };
-  // 两个窗口使用同一纵轴上限，避免缩放差异被误当作负载改善。
-  const sharedMax=maxLoad(history,replayData);
+  // 同类指标左右共用上限，同一观测期间只扩大；切换上下文后重算。
+  const historyAxisKey=JSON.stringify([modelId,seconds,historyEnd]);
+  const replayAxisKey=replay?.id || '';
+  const [axisState,setAxisState]=useState<LoadAxisState>(()=>updateLoadAxis(undefined,historyAxisKey,replayAxisKey,history,replayData));
+  let currentAxis=axisState;
+  if(axisState.historyKey!==historyAxisKey||axisState.replayKey!==replayAxisKey||axisState.history!==history||axisState.replay!==replayData){
+    currentAxis=updateLoadAxis(axisState,historyAxisKey,replayAxisKey,history,replayData);
+    setAxisState(currentAxis);
+  }
+  const sharedMax=currentAxis.max;
   return <div className="app-shell">
     <div className="main-shell">
       <header className="topbar"><div className="breadcrumb">Workspace</div><div className="header-right"><button className="language-switch" type="button" aria-label={language==='zh'?'Switch to English':'切换到中文'} title={language==='zh'?'Switch to English':'切换到中文'} onClick={()=>setLanguage(previous=>previous==='zh'?'en':'zh')}><Languages size={15}/><span lang="zh-CN" className={language==='zh'?'current':''}>中文</span><span className="language-divider">/</span><span lang="en" className={language==='en'?'current':''}>EN</span></button><button className="icon-button" aria-label={t('连接设置')} onClick={()=>setSettingsOpen(true)}><Settings2 size={18}/></button></div></header>

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as echarts from 'echarts';
 import type { LoadData, TimeRange } from './types';
+import type { LoadAxisMax } from './loadAxis';
 import { formatValue, normalizeRange } from './data';
 import { chartTime, formatRelativeTime, relativeTimeUnit } from './chartTime';
 import { fullDateTime } from './time';
@@ -18,7 +19,7 @@ interface Props {
   onSelect?: (range: TimeRange | undefined) => void; // undefined 同步清除选区，不创建回放。
   selectable?: boolean; // 历史窗口开启；回放窗口只观测。
   relativeOrigin?: number; // 实际 started_at，用于显示经过时间，单位仍为秒。
-  max?: number;
+  max?: LoadAxisMax;
 }
 const colors = ['#6d78ec', '#10a78e', '#ba72d6', '#c39732'];
 const escape = (s: string) => s.replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]!));
@@ -76,7 +77,7 @@ export default function LoadChart({ data, range, selection, onSelect, selectable
       // 两行日期/时间标签需要额外空间：两图之间留白，底部保留 52px，避免被回放区间遮挡。
       grid: [{left:46,right:18,top:56,height:116},{left:46,right:18,top:272,bottom:52}],
       xAxis: [0,1].map(gridIndex => ({type:timeAxis.type,gridIndex,min:timeAxis.min,max:timeAxis.max,minInterval:timeAxis.relative?1:undefined,splitNumber:ref.current!.clientWidth<500?3:5,axisLine:{lineStyle:{color:'#e5e9f0'}},axisTick:{show:false},axisLabel:{color:'#8b95a7',fontSize:10,lineHeight:14,margin:10,formatter:timeAxis.format,hideOverlap:true,showMinLabel:timeAxis.relative?true:undefined},axisPointer:{label:{formatter:(params:{value:number})=>timeAxis.format(params.value)}},splitLine:{show:false}})),
-      yAxis: [0,1].map(gridIndex => ({type:'value',gridIndex,min:0,max,splitNumber:3,minInterval:1,axisLabel:{color:'#8b95a7',fontSize:10},splitLine:{lineStyle:{color:'#edf0f5',type:'dashed'}},axisLine:{show:false}})),
+      yAxis: [0,1].map(gridIndex => ({type:'value',gridIndex,min:0,max:max?.[gridIndex===0?'running':'waiting'],splitNumber:3,minInterval:1,axisLabel:{color:'#8b95a7',fontSize:10},splitLine:{lineStyle:{color:'#edf0f5',type:'dashed'}},axisLine:{show:false}})),
       axisPointer: { link:[{xAxisIndex:'all'}] },
       tooltip: {
         trigger:'axis', confine:true, backgroundColor:'#fff',borderColor:'#e5e9f0',textStyle:{color:'#243047',fontSize:12},
